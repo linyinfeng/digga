@@ -10,7 +10,6 @@ let
     { username
     , configuration
     , pkgs
-    , system ? pkgs.system
     }:
     let
       homeDirectoryPrefix =
@@ -18,24 +17,27 @@ let
       homeDirectory = "${homeDirectoryPrefix}/${username}";
     in
     home-manager.lib.homeManagerConfiguration {
-      inherit username homeDirectory pkgs system;
+      inherit pkgs;
 
-      extraModules = config.home.modules ++ config.home.exportedModules;
+      modules = config.home.modules ++ config.home.exportedModules ++ [
+        {
+          imports = [ configuration ];
+          home = {
+            inherit username;
+            inherit homeDirectory;
+          };
+          targets.genericLinux.enable = lib.mkIf
+            (pkgs.stdenv.hostPlatform.isLinux && !pkgs.stdenv.buildPlatform.isDarwin)
+            true;
+        }
+      ];
       extraSpecialArgs = config.home.importables // { inherit self inputs; };
-
-      configuration = {
-        imports = [ configuration ];
-      } // (
-        if (pkgs.stdenv.hostPlatform.isLinux && !pkgs.stdenv.buildPlatform.isDarwin)
-        then { targets.genericLinux.enable = true; }
-        else { }
-      );
     };
 
   homeConfigurationsPortable =
     builtins.mapAttrs
       (n: v: mkPortableHomeManagerConfiguration {
-        inherit pkgs system;
+        inherit pkgs;
         username = n;
         configuration = v;
       })
